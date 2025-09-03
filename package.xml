@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Meta>
+    <title>Elin BGM Replacer 2</title>
+    <id>com.nan1kore.elinbgmreplacer2</id>
+    <author>nan1kore</author>
+    <loadPriority>100</loadPriority>
+    <version>0.23.187</version>
+    <tags></tags>
+    <description>
+    </description>
+    <builtin>false</builtin>
+</Meta>
