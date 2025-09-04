@@ -76,7 +76,7 @@ Elin
 3. Open it with a text editor. The following options are available:  
    - **BgmDirectory** → Absolute path to the folder containing your replacement MP3 files  
      - Only **absolute paths** are supported  
-     - If left blank, defaults to the same folder where `NkBGMReplacer2.dll` is located  
+     - Defaults to the same folder where `NkBGMReplacer2.dll` is located  
    - **Volume** → Playback volume for all MP3 files (applied uniformly)  
 
 > Individual file volume adjustments are **not supported**.  
