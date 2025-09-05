@@ -13,7 +13,7 @@ using DG.Tweening.Core;
 
 namespace ElinBgmReplacer
 {
-    [BepInPlugin("com.nan1kore.elinbgmreplacer2", "Elin BGM Replacer 2", "2.0.0")]
+    [BepInPlugin("com.nan1kore.elinbgmreplacer", "Elin BGM Replacer", "1.2.25")]
     public class BgmReplacer : BaseUnityPlugin
     {
         public static ConfigEntry<string> bgmDirectory;
@@ -166,7 +166,10 @@ namespace ElinBgmReplacer
             else
             {
                 BgmReplacer.isCustomBgmPlaying = false;
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] No BGMs loaded for zone: {zoneId}, falling back to default");
+                BgmReplacer.customPlaylist = null;
+                SoundManager.current.StopBGM(0.5f);
+                SoundManager.current.ResetPlaylist();
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] No BGMs loaded for zone: {zoneId}, stopping BGM and resetting playlist to allow default");
             }
         }
     }
@@ -195,6 +198,7 @@ namespace ElinBgmReplacer
             UnityEngine.Debug.Log($"[ElinBgmReplacer] Game.Load started: id={id}, cloud={cloud}. Resetting currentZoneId");
             BgmReplacer.currentZoneId = "";
             BgmReplacer.isCustomBgmPlaying = false;
+            BgmReplacer.customBgmList.Clear();
         }
     }
 
@@ -210,15 +214,15 @@ namespace ElinBgmReplacer
                 return false;
             }
 
-            if (BgmReplacer.isCustomBgmPlaying)
+            if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0)
             {
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM is playing. Preventing Zone.SetBGM for zone: {__instance.id}");
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM is playing with {BgmReplacer.customBgmList.Count} files. Preventing Zone.SetBGM for zone: {__instance.id}");
                 return false;
             }
 
-            if (!string.IsNullOrEmpty(BgmReplacer.currentZoneId))
+            if (!string.IsNullOrEmpty(BgmReplacer.currentZoneId) && BgmReplacer.customBgmList.Count > 0)
             {
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM for '{BgmReplacer.currentZoneId}' is loading/pending. Preventing Zone.SetBGM for zone: {__instance.id}");
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM for '{BgmReplacer.currentZoneId}' is loading/pending with {BgmReplacer.customBgmList.Count} files. Preventing Zone.SetBGM for zone: {__instance.id}");
                 return false;
             }
 
@@ -232,6 +236,7 @@ namespace ElinBgmReplacer
             yield return new WaitForSeconds(8f);
             BgmReplacer.currentZoneId = "victory";
             BgmReplacer.isCustomBgmPlaying = false;
+            BgmReplacer.customBgmList.Clear();
             UnityEngine.Debug.Log($"[ElinBgmReplacer] Loading victory BGM after delay");
             BgmReplacer.LoadBgmForZone("victory");
         }
@@ -242,19 +247,13 @@ namespace ElinBgmReplacer
     {
         static bool Prefix(Zone __instance)
         {
-            if (BgmReplacer.isCustomBgmPlaying)
+            if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0 && BgmReplacer.currentZoneId == __instance.id)
             {
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM is playing. Preventing Zone.RefreshBGM for zone: {__instance.id}");
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM is playing with {BgmReplacer.customBgmList.Count} files for zone '{BgmReplacer.currentZoneId}'. Preventing Zone.RefreshBGM for zone: {__instance.id}");
                 return false;
             }
 
-            if (!string.IsNullOrEmpty(BgmReplacer.currentZoneId))
-            {
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] Custom BGM for '{BgmReplacer.currentZoneId}' is loading/pending. Preventing Zone.RefreshBGM for zone: {__instance.id}");
-                return false;
-            }
-
-            UnityEngine.Debug.Log($"[ElinBgmReplacer] No custom BGM active. Allowing Zone.RefreshBGM for zone: {__instance.id}");
+            UnityEngine.Debug.Log($"[ElinBgmReplacer] No custom BGM active or no custom BGM files (Count: {BgmReplacer.customBgmList.Count}) for '{BgmReplacer.currentZoneId}' (Current Zone: {__instance.id}). Allowing Zone.RefreshBGM to play default BGM");
             return true;
         }
     }
@@ -264,12 +263,19 @@ namespace ElinBgmReplacer
     {
         static void Postfix(Zone __instance)
         {
+            if (EClass.pc != null && EClass.pc.HasCondition<ConSleep>())
+            {
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] Player is sleeping, ignoring BGM change during sleep sequence.");
+                return;
+            }
+
             string requiredBgmId = BgmReplacer.GetCurrentBgmId();
             if (requiredBgmId != BgmReplacer.currentZoneId)
             {
-                UnityEngine.Debug.Log($"[ElinBgmReplacer] BGM change detected on Zone.Activate. Required: '{requiredBgmId}', Current: '{BgmReplacer.currentZoneId}'");
-                BgmReplacer.currentZoneId = requiredBgmId;
+                UnityEngine.Debug.Log($"[ElinBgmReplacer] BGM change detected on Zone.Activate. Required: '{requiredBgmId}', Current: '{BgmReplacer.currentZoneId}', Clearing customBgmList");
+                BgmReplacer.customBgmList.Clear();
                 BgmReplacer.isCustomBgmPlaying = false;
+                BgmReplacer.currentZoneId = requiredBgmId;
                 BgmReplacer.LoadBgmForZone(requiredBgmId);
             }
             else if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customPlaylist != null && SoundManager.current.currentPlaylist != BgmReplacer.customPlaylist)
@@ -286,7 +292,7 @@ namespace ElinBgmReplacer
         static bool Prefix(SoundManager __instance, Playlist pl)
         {
             string playlistName = pl != null ? pl.name : "null";
-            if (BgmReplacer.isCustomBgmPlaying && !playlistName.StartsWith("Custom_"))
+            if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0 && !playlistName.StartsWith("Custom_"))
             {
                 UnityEngine.Debug.Log($"[ElinBgmReplacer] Game is trying to set playlist to: {playlistName}. Custom playlist might be overridden.");
             }
@@ -300,7 +306,7 @@ namespace ElinBgmReplacer
         static bool Prefix(SoundManager __instance, Playlist pl, bool stopBGM)
         {
             string playlistName = pl != null ? pl.name : "null";
-            if (BgmReplacer.isCustomBgmPlaying && !playlistName.StartsWith("Custom_"))
+            if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0 && !playlistName.StartsWith("Custom_"))
             {
                 UnityEngine.Debug.Log($"[ElinBgmReplacer] Game is trying to switch playlist to: {playlistName}. Custom playlist might be overridden.");
             }
