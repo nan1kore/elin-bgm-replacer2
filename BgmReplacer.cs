@@ -201,6 +201,74 @@ namespace ElinBgmReplacer
             BgmReplacer.customBgmList.Clear();
         }
     }
+    
+    [HarmonyPatch(typeof(ELayer), nameof(ELayer.Init))]
+    public class ELayerInitPatch
+    {
+        static void Postfix(ELayer __instance)
+        {
+            if (__instance is LayerShippingResult)
+            {
+                if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0)
+                {
+                    
+                    if (SoundManager.current.tweenFade != null && SoundManager.current.tweenFade.IsPlaying())
+                    {
+                        SoundManager.current.tweenFade.Complete();
+                        UnityEngine.Debug.Log("[ElinBgmReplacer] Forced tweenFade completion before pausing for ShippingResult");
+                    }
+                    
+                    if (SoundManager.current.sourceBGM != null)
+                    {
+                        SoundManager.current.sourceBGM.Pause();
+                        UnityEngine.Debug.Log($"[ElinBgmReplacer] Paused custom BGM for ShippingResult window. Zone: {BgmReplacer.currentZoneId}");
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogWarning("[ElinBgmReplacer] SoundManager.current.sourceBGM is null, cannot pause BGM");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.Log("[ElinBgmReplacer] No custom BGM active, skipping pause for ShippingResult");
+                }
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(Layer), nameof(Layer.OnKill))]
+    public class LayerOnKillPatch
+    {
+        static void Postfix(Layer __instance)
+        {
+            if (__instance is LayerShippingResult)
+            {
+                if (BgmReplacer.isCustomBgmPlaying && BgmReplacer.customBgmList.Count > 0)
+                {
+                    
+                    if (SoundManager.current.sourceBGM != null)
+                    {
+                        SoundManager.current.sourceBGM.UnPause();
+                        
+                        if (BgmReplacer.customPlaylist != null && SoundManager.current.currentPlaylist != BgmReplacer.customPlaylist)
+                        {
+                            SoundManager.current.SwitchPlaylist(BgmReplacer.customPlaylist, true);
+                            UnityEngine.Debug.Log($"[ElinBgmReplacer] Re-applied custom playlist '{BgmReplacer.customPlaylist.name}' after ShippingResult close");
+                        }
+                        UnityEngine.Debug.Log($"[ElinBgmReplacer] Unpaused custom BGM after ShippingResult close. Zone: {BgmReplacer.currentZoneId}");
+                    }
+                    else
+                    {
+                        UnityEngine.Debug.LogWarning("[ElinBgmReplacer] SoundManager.current.sourceBGM is null, cannot unpause BGM");
+                    }
+                }
+                else
+                {
+                    UnityEngine.Debug.Log("[ElinBgmReplacer] No custom BGM active, skipping unpause for ShippingResult");
+                }
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(Zone), nameof(Zone.SetBGM), new[] { typeof(List<int>), typeof(bool) })]
     public class ZoneSetBgmPatch
