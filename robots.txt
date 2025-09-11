@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nan1kore.github.io/elin-bgm-replacer2/sitemap.xml
